@@ -1,7 +1,7 @@
 {
-  "name": "strapi-plugin-graphql",
+  "name": "@gtomato/strapi-plugin-graphql-federation",
   "version": "3.5.1",
-  "description": "Adds GraphQL endpoint with default API methods.",
+  "description": "Adds GraphQL endpoint with default API methods and config free Apollo federation support",
   "strapi": {
     "name": "graphql",
     "icon": "plug",
