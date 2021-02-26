@@ -397,6 +397,7 @@ const buildSingleType = model => {
 };
 
 const buildCollectionType = model => {
+  const isFederated = _.get(strapi.plugins.graphql.config, 'isFederated', false);
   const { globalId, plugin, modelName, uid } = model;
 
   const singularName = toSingular(modelName);
@@ -428,7 +429,10 @@ const buildCollectionType = model => {
 
   const description = getTypeDescription(globalType, model);
   const fields = toSDL(typeDefObj, globalType, model);
-  const typeDef = `${description}type ${globalId} {${fields}}\n`;
+  let typeDef = `${description}type ${globalId} {${fields}}\n`;
+  if (isFederated) {
+    typeDef = `${description}type ${globalId} @key(fields: "id") {${fields}}\n`;
+  }
 
   localSchema.definition += typeDef;
 
@@ -452,6 +456,15 @@ const buildCollectionType = model => {
         resolvers: {
           Query: {
             [singularName]: wrapPublicationStateResolver(resolver),
+          },
+          // For Apollo federation, we need this to resolve the reference
+          [_.startCase(singularName)]: {
+            __resolveReference() {
+              const { id } = arguments[0]; // Remove the __typeName in the first argument
+              const [, ...restArg] = arguments;
+              const fn = wrapPublicationStateResolver(resolver);
+              return fn(null, { id }, ...restArg);
+            },
           },
         },
       });

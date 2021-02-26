@@ -89,23 +89,32 @@ const generateSchema = () => {
       ${scalarDef}
     `;
 
+  typeDefs = gql(typeDefs);
+
+  const payload = { typeDefs, resolvers };
   // Build schema.
-  const schema = makeExecutableSchema({
-    typeDefs,
-    resolvers,
-  });
+  const schema = isFederated ? buildFederatedSchema([payload]) : makeExecutableSchema(payload);
 
   const generatedSchema = filterDisabledResolvers(schema, extraResolvers);
+
+  // Add the __resolveReference back to the schema, as the __resolveReference is filtered by the `filterSchema`
+  // The __resolvedReference is renamed to resolvedReference here by the buildFederatedSchema call
+  if (isFederated) {
+    const originTypeMap = schema.getTypeMap();
+    const typeMap = generatedSchema.getTypeMap();
+    Object.keys(typeMap).forEach(typeName => {
+      const resolveReference = originTypeMap[typeName].resolveReference;
+      if (resolveReference) {
+        typeMap[typeName].resolveReference = resolveReference;
+      }
+    });
+  }
 
   if (strapi.config.environment !== 'production') {
     writeGenerateSchema(generatedSchema);
   }
-
-  return isFederated ? getFederatedSchema(generatedSchema, resolvers) : generatedSchema;
+  return generatedSchema;
 };
-
-const getFederatedSchema = (schema, resolvers) =>
-  buildFederatedSchema([{ typeDefs: gql(graphql.printSchema(schema)), resolvers }]);
 
 const filterDisabledResolvers = (schema, extraResolvers) =>
   filterSchema({
