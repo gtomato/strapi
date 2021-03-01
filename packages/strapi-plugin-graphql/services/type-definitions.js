@@ -458,7 +458,7 @@ const buildCollectionType = model => {
             [singularName]: wrapPublicationStateResolver(resolver),
           },
           // For Apollo federation, we need this to resolve the reference
-          [_.startCase(singularName)]: {
+          [globalId]: {
             __resolveReference() {
               const { id } = arguments[0]; // Remove the __typeName in the first argument
               const [, ...restArg] = arguments;
