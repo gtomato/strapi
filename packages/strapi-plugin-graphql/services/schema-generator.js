@@ -70,7 +70,7 @@ const generateSchema = () => {
       ${shadowCRUD.definition}
       ${polymorphicSchema.definition}
       ${Types.addInput()}
-      
+
       ${PublicationState.definition}
       type AdminUser {
         id: ID!
@@ -89,36 +89,51 @@ const generateSchema = () => {
       ${scalarDef}
     `;
 
-  typeDefs = gql(typeDefs);
+  // Declare the directive and scalar for federation
+  if (isFederated) {
+    typeDefs += `
+      scalar _FieldSet
+      directive @key(fields: _FieldSet!) on OBJECT | INTERFACE
+    `;
+  }
 
-  const payload = { typeDefs, resolvers };
   // Build schema.
-  const schema = isFederated ? buildFederatedSchema([payload]) : makeExecutableSchema(payload);
+  const schema = makeExecutableSchema({
+    typeDefs,
+    resolvers,
+  });
 
-  const generatedSchema = filterDisabledResolvers(schema, extraResolvers);
-
+  let generatedSchema = filterDisabledResolvers(schema, extraResolvers);
   // Add the __resolveReference back to the schema, as the __resolveReference is filtered by the `filterSchema`
   // The __resolvedReference is renamed to resolvedReference here by the buildFederatedSchema call
   if (isFederated) {
+    generatedSchema = getFederatedSchema(generatedSchema, resolvers);
     const originTypeMap = schema.getTypeMap();
     const typeMap = generatedSchema.getTypeMap();
-    Object.keys(typeMap).forEach(typeName => {
-      const resolveReference = originTypeMap[typeName].resolveReference;
-      if (resolveReference) {
-        typeMap[typeName].resolveReference = resolveReference;
-      }
-    });
+    Object.keys(typeMap)
+      .filter(typeName => originTypeMap[typeName])
+      .forEach(typeName => {
+        const resolveReference = originTypeMap[typeName].resolveReference;
+        if (resolveReference) {
+          typeMap[typeName].resolveReference = resolveReference;
+        }
+      });
   }
 
   if (strapi.config.environment !== 'production') {
     writeGenerateSchema(generatedSchema);
   }
+
   return generatedSchema;
 };
+
+const getFederatedSchema = (schema, resolvers) =>
+  buildFederatedSchema([{ typeDefs: gql(graphql.printSchema(schema)), resolvers }]);
 
 const filterDisabledResolvers = (schema, extraResolvers) =>
   filterSchema({
     schema,
+
     rootFieldFilter: (operationName, fieldName) => {
       const resolver = _.get(extraResolvers[operationName], fieldName, true);
 
